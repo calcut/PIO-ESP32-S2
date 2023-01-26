@@ -53,7 +53,8 @@ void setup(void) {
   SDwriteData();
   char FileName[] = "/demofile.txt";
   GetCRC(FileName);
-  char FileName2[] = "/bigfile.txt";
+//   char FileName2[] = "Photos-001";
+  char FileName2[] = "/Photos-001.zip";
   GetCRC(FileName2);
 
 
@@ -152,13 +153,15 @@ void GetCRC(char FileName[]){
     uint32_t start = millis();
 
 
-    SerialDB.println("Calculating CRC\n\n");
 
     File file = SD.open(FileName);
 
     uint32_t fileSize = file.size();
     uint32_t dataLen = bufsize;
     // uint32_t loop = 0;
+    SerialDB.printf("\nTransferring %s, (%d bytes)\n", FileName, fileSize);
+    SerialUSB.printf("Incomingbytes = %u\n", fileSize);
+
     while (file.available()){
         // loop += 1;
         // SerialDB.println(loop);
@@ -171,16 +174,19 @@ void GetCRC(char FileName[]){
         }
         file.read(buf, dataLen);
         crc.update(buf,dataLen);
-        SerialUSB.printf("%s", buf);
+        // SerialUSB.printf("%.*s", dataLen, buf);
+        SerialUSB.write(buf, dataLen);
+        // Serial.print()
 
     }
+    SerialUSB.printf("\n");
 
     uint32_t checksum = crc.finalize();
-
     uint32_t end = millis() - start;
     uint32_t rate = fileSize/end*1000/1024;
-    SerialDB.printf("checksum = 0x%08X\n", checksum);
-    SerialDB.printf("- CRC Rate = %u KB/s\n", rate);
+    SerialUSB.printf("checksum = 0x%08X, filename = %s\n", checksum, FileName);
+    SerialDB.printf("checksum = 0x%08X, filename = %s\n", checksum, FileName);
+    SerialDB.printf("- Transfer took %u ms, %u KB/s\n", end, rate);
 
     file.close();
 }
