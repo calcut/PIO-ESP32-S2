@@ -1,0 +1,37 @@
+SD test
+bufsize 512 bytes
+- Writing- 524288 bytes written in 1512 ms, - Write Rate = 337 KB/s
+- Reading- 524288 bytes read in 1233 ms, - Read Rate = 415 KB/s
+- USB transfer in 2284 ms, 223 KB/s
+
+bufsize 1024 bytes
+- Writing- 524288 bytes written in 1549 ms, - Write Rate = 330 KB/s
+- Reading- 524288 bytes read in 1224 ms, - Read Rate = 417 KB/s
+- USB transfer in 2282 ms, 223 KB/s
+
+bufsize 2048 bytes
+- Writing- 524288 bytes written in 1550 ms, - Write Rate = 330 KB/s
+- Reading- 524288 bytes read in 1218 ms, - Read Rate = 419 KB/s
+- USB transfer in 2282 ms, 223 KB/s
+
+SPIFFS test
+bufsize 512 bytes
+- Writing- 524288 bytes written in 14034 ms, - Write Rate = 36 KB/s
+- Reading- 524288 bytes read in 154 ms, - Read Rate = 3324 KB/s
+- USB transfer in 1172 ms, 436 KB/s
+
+bufsize 1024 bytes
+- Writing- 524288 bytes written in 14014 ms, - Write Rate = 36 KB/s
+- Reading- 524288 bytes read in 173 ms, - Read Rate = 2958 KB/s
+- USB transfer in 1198 ms, 426 KB/s
+
+bufsize 2048 bytes
+- Writing- 524288 bytes written in 14437 ms, - Write Rate = 35 KB/s
+- Reading- 524288 bytes read in 138 ms, - Read Rate = 3709 KB/s
+- USB transfer in 1178 ms, 434 KB/s
+
+PSRAM test (unstable, may not be set up properly)
+bufsize 512 bytes
+- Writing- 524288 bytes written in 106 ms, - Write Rate = 4830 KB/s
+- Reading- 524288 bytes read in 43 ms, - Read Rate = 11906 KB/s
+- USB transfer in 1072 ms, 477 KB/s
