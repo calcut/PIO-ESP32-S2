@@ -220,6 +220,7 @@ void SDinit() {
 void SendCRC(fs::FS &fs, char filename[]){
 
     crc.reset();
+    uint32_t checksum = 0;
     uint32_t bufsize = 2048;
     uint8_t buf[bufsize];
 
@@ -233,8 +234,6 @@ void SendCRC(fs::FS &fs, char filename[]){
     SerialUSB.printf("Incomingbytes = %u\n", fileSize);
 
     while (file.available()){
-        // loop += 1;
-        // SerialDB.println(loop);
 
         if (file.available() > bufsize){
             dataLen = bufsize;
@@ -244,14 +243,12 @@ void SendCRC(fs::FS &fs, char filename[]){
         }
         file.read(buf, dataLen);
         crc.update(buf,dataLen);
-        // SerialUSB.printf("%.*s", dataLen, buf);
         SerialUSB.write(buf, dataLen);
-        // Serial.print()
 
     }
     SerialUSB.printf("\n");
 
-    uint32_t checksum = crc.finalize();
+    checksum = crc.finalize();
     uint32_t end = millis() - start;
     uint32_t rate = fileSize/end*1000/1024;
     SerialUSB.printf("checksum = 0x%08X, filename = %s\n", checksum, filename);
