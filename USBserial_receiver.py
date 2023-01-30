@@ -8,7 +8,7 @@ def download_file(filename):
     # TODO ADD timeout
     print(f"Downloading {filename}...")
     start = time.time()
-    ser.write(bytes(f"</{filename}>", "ascii"))
+    ser.write(bytes(f"<cp /{filename}>", "ascii"))
     while True:
         buffer = ser.readline()
         if buffer[:16] == b"Incomingbytes = ":
@@ -30,6 +30,7 @@ def download_file(filename):
                 print(f'File {filename} received successfully, {kbs}KB in {elapsed}s, {rate}KB/s')
                 with open(f"./Received/{filename}", 'wb') as f:
                     f.write(data)
+                ser.write(bytes(f"<rm /{filename}>", "ascii"))
                 
                 return
             else:
@@ -62,7 +63,7 @@ data = b""
 
 print(f'requesting SDCARD ls')
 ser.write(bytes("<ls>", "ascii"))
-time.sleep(0.1)
+time.sleep(1)
 remote_files = []
 while ser.in_waiting:
     data = ser.readline()
