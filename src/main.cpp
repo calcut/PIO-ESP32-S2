@@ -177,7 +177,7 @@ void processData(){
             int sample2 = 0;
             char row[50]; 
             char filename[numChars];
-            sprintf(filename, "/data_%04u-%02u-%02u-%02u%02u", year(),month(),day(),hour(),minute() );
+            sprintf(filename, "/data_%04u-%02u-%02u-%02u%02u.txt", year(),month(),day(),hour(),minute() );
             // sprintf(filename, "/data.txt");
             // SerialDB.printf("%04u-%02u-%02u-%02u%02u", year(),month(),day(),hour(),minute());
             SerialDB.print("**** Writing to SD card: ");
@@ -362,45 +362,58 @@ void parseUSB() {
 
         char cmd[numChars];
         char arg[numChars];
+        delay(1); //Not sure why this is required! maybe a bug. sscanf doesn't work without it.
         sscanf(receivedChars, "%s %s", cmd, arg);
-        // cmd[0] = receivedChars[0];
-        // cmd[1] = receivedChars[1];
-        // SerialDB.write(cmd);
-        SerialDB.printf("%s\n", cmd);
-        SerialDB.printf("%s\n", arg);
 
-        if (strcmp(cmd, "ls") == 0){
-            SerialDB.println("bing ls received");
+
+        SerialDB.printf("rcv=%s\n", receivedChars);
+        SerialDB.printf("cmd=%s\n", cmd);
+        SerialDB.printf("arg=%s\n", arg);
+
+        if (strcmp(cmd, "cp") == 0){
+            SerialDB.printf("Transferring %s\n", arg);
+            if (SD.exists(arg)){
+                SendCRC(arg);
+            }
+            else {
+                SerialDB.println("File not found!");
+            }
+
         }
 
-        // File root = SD.open("/");
-        // if(!root){
-        //     SerialDB.println("Failed to open SD Card");
-        // }
+        if (strcmp(cmd, "rm") == 0){
+            SerialDB.printf("Deleting %s\n", arg);
+            if (SD.exists(arg)){
+                SD.remove(arg);
+            }
+            else {
+                SerialDB.println("File not found!");
+            }
 
-        // if(!root.isDirectory()){
-        //     SerialDB.println("Not a directory");
-        //     return;
-        // }
+        }
 
-        // char filename[numChars];
-        // File file = root.openNextFile();
-        // while(file){
-        //     strcpy(filename, "/");
-        //     strcat(filename, file.name());
+        if (strcmp(cmd, "ls") == 0){
+            SerialDB.println("Listing SD card");
+            File root = SD.open("/");
+            if(!root){
+                SerialDB.println("Failed to open SD Card");
+            }
 
-        //     if (strcmp(receivedChars, "ls") == 0){
-        //         // SerialDB.println("Listing directory");
-        //         SerialDB.println(filename);
-        //         SerialUSB.printf("%s\n", filename);
-        //     }
+            if(!root.isDirectory()){
+                SerialDB.println("Not a directory");
+                return;
+            }
 
-        //     if (strcmp(receivedChars, filename) == 0){
-        //         SerialDB.printf("Matched %s\n", filename);
-        //         SendCRC(filename);
-        //     }
-        //     file = root.openNextFile();
-        // }
+            char filename[numChars];
+            File file = root.openNextFile();
+            while(file){
+                strcpy(filename, "/");
+                strcat(filename, file.name());
+                SerialDB.println(filename);
+                SerialUSB.printf("%s\n", filename);
+                file = root.openNextFile();
+                }
+        }
         newData = false;
     }
 }

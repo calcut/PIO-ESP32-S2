@@ -63,7 +63,7 @@ data = b""
 
 print(f'requesting SDCARD ls')
 ser.write(bytes("<ls>", "ascii"))
-time.sleep(1)
+time.sleep(10)
 remote_files = []
 while ser.in_waiting:
     data = ser.readline()
