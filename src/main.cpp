@@ -24,8 +24,8 @@
 #define SerialGPS Serial1 //GPS module
 
 // #define BUFFER_SIZE 2500 //10s worth at 250sps - how big can/should this be??
-#define BUFFER_SIZE 7500 //10s worth at 250sps - how big can/should this be??
-#define CpuFreqMHz 80
+#define BUFFER_SIZE 7500 //30s worth at 250sps - how big can/should this be??
+#define CpuFreqMHz 240
 
 //I2C Pins
 #define I2C_SDA  33
@@ -120,6 +120,12 @@ volatile bool pps_flag = false;
 bool timesync_flag = false;
 bool GPS_enabled = false;
 
+int32_t sample0_mem = 0;
+int32_t sample1_mem = 0;
+int32_t sample2_mem = 0;
+uint32_t micro_mem =0;
+
+
 void setup(void) {
     SerialDB.begin(115200);
     while(!SerialDB)
@@ -135,7 +141,7 @@ void setup(void) {
     SerialDB.println("Initializing SD card...");
 
     spiSD.begin(SD_SCK, SD_MISO, SD_MOSI, SD_CS); 
-    if (SD.begin(SD_CS, spiSD)) {
+    if (SD.begin(SD_CS, spiSD, 20000000)) {
         SerialDB.println("SD Card initialised");
     } else SerialDB.println("Failed to init SD");
 
@@ -150,13 +156,8 @@ void setup(void) {
 
 }
 
-
 void loop(void) {
-    // if (millis() - timer > log_stattime*1000) {
-    //     timer = millis(); // reset the timer
-    //     printSystemtime();
-    //     GPSstatus();
-    // }
+
     GPSservice();
     readUSB();
     parseUSB();
@@ -172,10 +173,10 @@ void processData(){
         // if (!timestamps.isEmpty()) {
 
             struct Tstamp stamp;
-            int sample0 = 0;
-            int sample1 = 0;
-            int sample2 = 0;
-            char row[50]; 
+            int32_t sample0 = 0;
+            int32_t sample1 = 0;
+            int32_t sample2 = 0;
+            char row[99]; 
             char filename[numChars];
             sprintf(filename, "/data_%04u-%02u-%02u-%02u%02u.txt", year(),month(),day(),hour(),minute() );
             // sprintf(filename, "/data.txt");
@@ -201,12 +202,19 @@ void processData(){
                 // if (timestamps.size() < buffer_low_size) {
                 //     delay(5);
                 // }
+                int32_t delta_time = stamp.micro - micro_mem;
+                int32_t delta_sample0 = sample0 - sample0_mem;
+                micro_mem = stamp.micro;
+                sample0_mem = sample0;
 
-                sprintf(row, "%08X %08X %08X %010d.%06d",
-                sample0 ,sample1, sample2, stamp.unixtime, stamp.micro);
+
+                sprintf(row, "%08X %08X %08X %010d.%06d - %d - %d",
+                sample0 ,sample1, sample2, stamp.unixtime, stamp.micro, delta_time, delta_sample0);
 
                 file.println(row);
             }
+            file.println("DEBUG buf empty");
+
             file.close();
 
 
@@ -335,40 +343,10 @@ void parseUSB() {
         SerialDB.print("Parsing USB Serial message: ");
         SerialDB.println(receivedChars);
 
-        for (uint32_t i=0; i<sizeof(receivedChars); i++){
-            SerialDB.print(receivedChars[i]);
-            SerialDB.println("-");
-
-        }
-
-        // const char *delimiter =",";
-        // char *token1;
-        // char *token2;
-
-        // token1 = strtok(receivedChars, delimiter);
-
-        // while (token1 != NULL) {
-        //     Serial.println(token1);
-        //     token1=strtok(NULL, delimiter);
-        // }
-
-
-        // token1 = strtok(receivedChars, delimiter);
-        // SerialDB.printf("token1 = %s", token1);
-        // token2 = strtok(NULL, delimiter);
-        // SerialDB.printf("token2 = %s", token2);
-
-
-
         char cmd[numChars];
         char arg[numChars];
         delay(1); //Not sure why this is required! maybe a bug. sscanf doesn't work without it.
         sscanf(receivedChars, "%s %s", cmd, arg);
-
-
-        SerialDB.printf("rcv=%s\n", receivedChars);
-        SerialDB.printf("cmd=%s\n", cmd);
-        SerialDB.printf("arg=%s\n", arg);
 
         if (strcmp(cmd, "cp") == 0){
             SerialDB.printf("Transferring %s\n", arg);
@@ -420,16 +398,18 @@ void parseUSB() {
 
 void ISR_DRDY() {
     struct Tstamp stamp;
-    stamp.micro = micros();
-    stamp.unixtime = now();
+    if(timesync_flag){
 
-    ADC0->readData();
-    #ifndef ADC_SINGLE
-    ADC1->readData();
-    ADC2->readData();
-    #endif
+        stamp.micro = GPSmicros();
+        stamp.unixtime = now();
 
-    timestamps.push(stamp);
+        drdy_count += 1;
+        ADC0->readData();
+        ADC1->readData();
+        ADC2->readData();
+
+        timestamps.push(stamp);
+    }
 }
 
 void GEOinit(){
@@ -556,6 +536,8 @@ void GPStimesync() {
     // if (debug->print_gps) {
     if (true) {
         SerialDB.println("Synchronising System time to GPS...");
+        SerialDB.printf("PPS Count = %d, micros_offset = %d\n", pps_count, micros_offset);
+
     }
     if(GPS->fix && (GPS->year > 0)) {
         pps_flag = false;  

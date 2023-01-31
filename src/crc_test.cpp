@@ -5,14 +5,18 @@
 #include <SPI.h>
 #include <FS.h>
 #include "SPIFFS.h"
-#include <PSRamFS.h>
+// #include <PSRamFS.h>
 
 #include <SD.h>
 
 #include <CRC32.h>
 
+#include "IOexp.h"
+
+
 
 CRC32 crc;
+
 
 //SD Card SPI pins
 // For WOKWI WROOM
@@ -27,6 +31,12 @@ CRC32 crc;
 #define SD_SCK   42
 #define SD_CS    15
 
+//I2C Pins
+#define I2C_SDA  33
+#define I2C_SCL  34
+//IO Expander Interrupt
+#define IO_INTERRUPT 17
+
 #define FORMAT_SPIFFS_IF_FAILED true
 
 #define SerialDB Serial0 //debug messages and control
@@ -34,11 +44,14 @@ CRC32 crc;
 
 File root;
 SPIClass spiSD(FSPI); // Use the 'FSPI' peripheral of ESP32-S2 for SD Card
+IOexp * IO = NULL;
 
 void SDinit();
 // void SDwriteData();
 void testFileIO(fs::FS &fs, uint32_t bufsize, uint32_t filesize);
 void SendCRC(fs::FS &fs, char filename[]);
+
+
 
 void setup(void) {
   SerialDB.begin(115200);
@@ -47,8 +60,11 @@ void setup(void) {
   SerialDB.println(" Connected!");
   SerialDB.println("Initializing SD card...");
 
+  setCpuFrequencyMhz(240);
+
   spiSD.begin(SD_SCK, SD_MISO, SD_MOSI, SD_CS); 
-  if (SD.begin(SD_CS, spiSD)) {
+  if (SD.begin(SD_CS, spiSD, 4000000)) {
+  // if (SD.begin(SD_CS, spiSD)) {
       SerialDB.println("SD Card initialised");
   } else SerialDB.println("Failed to init SD");
 
@@ -59,30 +75,35 @@ void setup(void) {
     SerialDB.println("SPIFFS Mount Failed");
   }
 
-  if(!PSRamFS.begin()){
-    SerialDB.println("PSRamFS Mount Failed");
-  }
 
-  uint32_t bufsize; //must be a factor of filesize
-//   uint32_t filesize = 1024*1024 * 1; //1MB
-  uint32_t filesize = 1024*512 * 1; //1MB
+  IO = new IOexp(&SerialDB, I2C_SDA, I2C_SCL, IO_INTERRUPT);
+  IO->disable_all();
 
-  SerialDB.printf("\nSD test");
-  for (bufsize = 512; bufsize <=2048; bufsize = bufsize*2){
-    SerialDB.printf("\nbufsize %u bytes", bufsize);
-    testFileIO(SD, bufsize, filesize);
-  }
+  SerialDB.println("5s to measure idle power at 240MHz");
+  delay(5000);
+
+  uint32_t bufsize = 512; //must be a factor of filesize
+  uint32_t filesize = 1024*1024 * 5; //1MB
+
+  SD.end();
+  SerialDB.printf("\nSD test @4MHz");
+  SD.begin(SD_CS, spiSD, 4000000);
+  testFileIO(SD, bufsize, filesize);
+  SD.end();
+
+  SerialDB.printf("\nSD test @12MHz");
+  SD.begin(SD_CS, spiSD, 12000000);
+  testFileIO(SD, bufsize, filesize);
+  SD.end();
+
+  SerialDB.printf("\nSD test @20MHz");
+  SD.begin(SD_CS, spiSD, 20000000);
+  testFileIO(SD, bufsize, filesize);
+  SD.end();
 
   SerialDB.printf("\nSPIFFS test");
-  for (bufsize = 512; bufsize <=2048; bufsize = bufsize*2){
-    SerialDB.printf("\nbufsize %u bytes", bufsize);
-    testFileIO(SPIFFS, bufsize, filesize);
-  }
+  testFileIO(SPIFFS, bufsize, filesize);
 
-  SerialDB.printf("\nPSRAM test (unstable, may not be set up properly)");
-  bufsize= 512;
-  SerialDB.printf("\nbufsize %u bytes", bufsize);
-  testFileIO(PSRamFS, bufsize, filesize);
 }
 
 void loop(void) {

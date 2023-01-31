@@ -2,7 +2,7 @@
 #define ADS1284_h
 
 #ifndef BUFFER_SIZE
-#define BUFFER_SIZE 2500 //10s worth at 250sps
+#define BUFFER_SIZE 7500 //30s worth at 250sps
 #endif
 
 
