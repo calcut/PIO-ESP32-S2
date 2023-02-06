@@ -124,6 +124,9 @@ int32_t sample0_mem = 0;
 int32_t sample1_mem = 0;
 int32_t sample2_mem = 0;
 uint32_t micro_mem =0;
+uint32_t micros_check = 0;
+
+boolean debugfileA = true;
 
 
 void setup(void) {
@@ -179,11 +182,14 @@ void processData(){
             char row[99]; 
             char filename[numChars];
             sprintf(filename, "/data_%04u-%02u-%02u-%02u%02u.txt", year(),month(),day(),hour(),minute() );
-            // sprintf(filename, "/data.txt");
-            // SerialDB.printf("%04u-%02u-%02u-%02u%02u", year(),month(),day(),hour(),minute());
+            if (debugfileA) {
+                sprintf(filename, "/dataA.txt");
+            }
+
             SerialDB.print("**** Writing to SD card: ");
             SerialDB.println(filename);
-            File file = SD.open(filename, FILE_APPEND);
+            File file = SD.open(filename, FILE_WRITE);
+            // File file = SD.open(filename, FILE_APPEND);
             if(!file){
                 SerialDB.println("Failed to open file for appending");
                 delay(1000);
@@ -196,24 +202,35 @@ void processData(){
                 ADC1->data.lockedPop(sample1);
                 ADC2->data.lockedPop(sample2);
 
+                if (micros_check == 0 ){
+                    micros_check = stamp.micro;
 
-                // // If the buffer is nearly empty, need to run slower to not underrun
-                // // it. Delay should be at least data period, e.g. 4ms at 250Hz
-                // if (timestamps.size() < buffer_low_size) {
-                //     delay(5);
+                }
+                int32_t micros_diff = stamp.micro - micros_check;
+
+
+                // if (abs(micros_diff) > 3 ){
+                //     micros_check = stamp.micro;
+
                 // }
+
+
                 int32_t delta_time = stamp.micro - micro_mem;
                 int32_t delta_sample0 = sample0 - sample0_mem;
                 micro_mem = stamp.micro;
                 sample0_mem = sample0;
 
+                // sprintf(row, "%08X %08X %08X %010d.%06d",
+                // sample0 ,sample1, sample2, stamp.unixtime, stamp.micro);
 
-                sprintf(row, "%08X %08X %08X %010d.%06d - %d - %d",
-                sample0 ,sample1, sample2, stamp.unixtime, stamp.micro, delta_time, delta_sample0);
+                sprintf(row, "%08X %08X %08X %010d.%06d %d %d %d %d",
+                sample0 ,sample1, sample2, stamp.unixtime, stamp.micro, delta_time, micros_diff, micros_check);
+                                        
+                micros_check = micros_check + 4000;
+                micros_check = micros_check % 1000000;
 
                 file.println(row);
             }
-            file.println("DEBUG buf empty");
 
             file.close();
 
