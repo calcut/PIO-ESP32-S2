@@ -53,6 +53,8 @@ def hexstring_to_miniseed(filename, directory, stats=None):
 
 
     st = Stream([Trace(data=s0, header=stats0), Trace(data=s1, header=stats1), Trace(data=s2, header=stats2)])
+    print(st)
+    print(f'{freq=}')
 
 
     try:

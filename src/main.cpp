@@ -111,10 +111,10 @@ char receivedChars[numChars];
 
 int log_stattime = 5; //seconds
 int GPS_ontime = 3600; //seconds
-int GPS_offtime = 10; //seconds
+int GPS_offtime = 60; //seconds
 int GPS_synctime = 5; //seconds
 uint32_t timerGPS = millis();
-uint32_t timerGPSsync = millis(); // check this, think overused
+uint32_t timerGPSsync = millis();
 uint32_t micros_offset = micros();
 volatile bool pps_flag = false;
 bool timesync_flag = false;
@@ -124,6 +124,7 @@ int32_t sample0_mem = 0;
 int32_t sample1_mem = 0;
 int32_t sample2_mem = 0;
 uint32_t micro_mem =0;
+uint32_t unixtime_mem =0;
 uint32_t micros_check = 0;
 
 boolean debugfileA = true;
@@ -188,11 +189,10 @@ void processData(){
 
             SerialDB.print("**** Writing to SD card: ");
             SerialDB.println(filename);
-            File file = SD.open(filename, FILE_WRITE);
-            // File file = SD.open(filename, FILE_APPEND);
+            // File file = SD.open(filename, FILE_WRITE);
+            File file = SD.open(filename, FILE_APPEND);
             if(!file){
                 SerialDB.println("Failed to open file for appending");
-                delay(1000);
                 return;
             }
 
@@ -209,15 +209,18 @@ void processData(){
                 int32_t micros_diff = stamp.micro - micros_check;
 
 
-                // if (abs(micros_diff) > 3 ){
-                //     micros_check = stamp.micro;
-
-                // }
-
-
-                int32_t delta_time = stamp.micro - micro_mem;
+                int32_t delta_time = (stamp.micro - micro_mem) + (stamp.unixtime - unixtime_mem)*1000000;
+                
+                if (delta_time < 0){
+                    delta_time += 1000000;
+                    if ((stamp.unixtime - unixtime_mem) == 0){
+                        stamp.unixtime +=1;
+                    }
+                }
+                
                 int32_t delta_sample0 = sample0 - sample0_mem;
                 micro_mem = stamp.micro;
+                unixtime_mem = stamp.unixtime;
                 sample0_mem = sample0;
 
                 // sprintf(row, "%08X %08X %08X %010d.%06d",
@@ -293,7 +296,7 @@ void SendCRC(char filename[]){
     uint32_t fileSize = file.size();
     uint32_t dataLen = bufsize;
 
-    // SerialDB.printf("\nTransferring with CRC %s, %d bytes\n", filename, fileSize);
+    SerialDB.printf("\nTransferring with CRC %s, %d bytes\n", filename, fileSize);
     SerialUSB.printf("Incomingbytes = %u\n", fileSize);
 
     while (file.available()){
@@ -502,31 +505,37 @@ void GPSinit(){
     pinMode(GPS_PPS, INPUT);
     attachInterrupt(GPS_PPS,ISR_PPS,RISING);
     GPS_enabled = true;
+    GPStimesync();
     // GPS->standby();
 }
 
 void GPSservice() {
     if (GPS_enabled) {
+        if (pps_flag){
+            pps_flag = false;
+            if (millis() - timerGPSsync > (GPS_synctime*1000)){
+                timerGPSsync = millis();
+                setTime(GPS->hour, GPS->minute, GPS->seconds, GPS->day, GPS->month, (GPS->year + 2000));
+                SerialDB.println("Synchronising System time to GPS, via GPSservice");
+            }
+        }
         char c = GPS->read();
 
         if (GPS->newNMEAreceived()) {
             GPS->parse(GPS->lastNMEA());
         }
 
-        if(GPS->fix) {
-            if (millis() - timerGPSsync > (GPS_synctime*1000)){
-                    timerGPSsync = millis();
-                    GPStimesync(); 
-            }
-            else {
-                //If sysclk is not yet synchronised, we can skip the timer.
-                //also check that year is positive, to make sure we've received
-                //a NMEA message with the time
-                if(!timesync_flag && GPS->year > 0) {
-                    GPStimesync();
-                }
-            }
-        }
+        // if(GPS->fix) {
+
+        //     else {
+        //         //If sysclk is not yet synchronised, we can skip the timer.
+        //         //also check that year is positive, to make sure we've received
+        //         //a NMEA message with the time
+        //         if(!timesync_flag && GPS->year > 0) {
+        //             GPStimesync();
+        //         }
+        //     }
+        // }
             
         if (millis() - timerGPS > (GPS_ontime*1000)) {
             timerGPS = millis();
@@ -549,33 +558,38 @@ void GPSservice() {
 }
 
 void GPStimesync() {
-    timerGPSsync = millis(); 
-    // if (debug->print_gps) {
-    if (true) {
-        SerialDB.println("Synchronising System time to GPS...");
-        SerialDB.printf("PPS Count = %d, micros_offset = %d\n", pps_count, micros_offset);
 
-    }
-    if(GPS->fix && (GPS->year > 0)) {
+    if (GPS->year == 0){
+        uint32_t timer_tsync = millis();
+        SerialDB.println("Waiting up to 60s for GPS Fix before time sync");
+
+        while(!GPS->fix || (GPS->year == 0)){
+            GPSservice();
+            if (millis() - timer_tsync > 60000) {
+                SerialDB.println("Warning - No GPS fix, time not set");
+                return;
+            }
+        }
+
+        timer_tsync = millis(); 
         pps_flag = false;  
         while (!pps_flag) { // wait to sync time at exactly a PPS edge.
             delayMicroseconds(5);
-            if (millis() - timerGPSsync > 2000) {
+            if (millis() - timer_tsync > 5000) {
                 SerialDB.println("Warning - No PPS pulse detected for time sync");
                 break;  // to prevent getting stuck here if no PPS signal arrives
             }
         }
-        setTime(GPS->hour, GPS->minute, GPS->seconds, GPS->day, GPS->month, (GPS->year + 2000));
-        timesync_flag = true;
-    } 
-    else {
-        SerialDB.println("No GPS Fix, did not sync time");
     }
+    SerialDB.println("Synchronising System time to GPS");
+    setTime(GPS->hour, GPS->minute, GPS->seconds, GPS->day, GPS->month, (GPS->year + 2000));
+    timesync_flag = true;
+
 }
 
 void ISR_PPS() {
-    
     micros_offset = micros();
+    // setTime(GPS->hour, GPS->minute, GPS->seconds, GPS->day, GPS->month, (GPS->year + 2000));
     pps_flag = true;
     pps_count += 1;
 }
